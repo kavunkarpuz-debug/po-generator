@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Oluşturulan PO dosyaları (her kullanıcıda farklı olacak)
+*PO for*.docx
+*PO for*.pdf
+
+# Teklif dosyaları
+*.pdf
+!PO_TEMPLATE.docx
+
+# Talimat dosyaları (repo'ya gerek yok)
+PO_Automation_Instructions.md
+PO_Kurulum_Rehberi.md
+
+# Windows
+nul
+Thumbs.db
+desktop.ini
+
+# Temp files
+_temp_*
