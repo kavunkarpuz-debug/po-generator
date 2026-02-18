@@ -90,6 +90,11 @@ class GenerateScreen:
         self._btn.config(state="normal")
         self._status_var.set("")
 
+        # po_number is auto-generated at PDF creation time — pre-fill a placeholder
+        # so the field shows ✅ in the review screen and doesn't block the button.
+        if not values.get("po_number"):
+            values["po_number"] = "(otomatik oluşturulacak)"
+
         review_win = tk.Toplevel(self.root)
         ReviewScreen(
             review_win,
