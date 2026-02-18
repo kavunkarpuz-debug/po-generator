@@ -12,18 +12,35 @@ from core.config import DEFAULT_TEMPLATE_PATH, DEFAULT_FIELDS_PATH
 
 ANALYZER_PROMPT = """You are analyzing a Purchase Order document to create a reusable template.
 
-Look at this PO and do two things:
+This PO belongs to a specific BUYER company. Distinguish between two kinds of information:
 
-1. Identify every field that changes per order (PO number, date, supplier name,
-   contact person, subject/description, delivery time, payment terms, delivery
-   terms, total price, etc.). Give each a short snake_case name.
+── STATIC (hardcode directly in the HTML — NO placeholders) ──────────────────
+Everything that belongs to the buyer company itself and never changes:
+  • Buyer company name, head office address, branch/regional office address
+  • Phone, fax, e-mail, trade registry numbers, tax office & ID
+  • Sender's full name, job title, mobile number, office address, office phone, website
+  • Any fixed legal text, logos, or branding
 
-2. Generate an HTML/CSS template that visually matches this PO layout.
-   Use {{ field_name }} Jinja2 placeholders wherever those fields appear.
-   The HTML should be self-contained (inline CSS), A4 page size, print-ready.
-   Keep the HTML concise — no comments, no extra whitespace, minimal CSS.
+── DYNAMIC (use {{ snake_case_name }} Jinja2 placeholders) ──────────────────
+Only information that comes from the supplier's quotation or changes per order:
+  • po_date         — date of this purchase order
+  • po_number       — purchase order reference number
+  • supplier_company — name of the vendor/supplier (TO field)
+  • supplier_contact — attention/contact person at the supplier (ATTN field)
+  • subject          — description of the items being ordered
+  • delivery_time    — lead time (e.g. 90 to 120 Days)
+  • payment_term     — payment terms (e.g. Net 30 Days)
+  • delivery_term    — incoterm (e.g. EXW Odessa Texas)
+  • total_price      — total quoted price (number only, no currency symbol)
 
-Return your answer in EXACTLY this format -- no other text outside the tags:
+Keep the dynamic field list as short as possible — roughly these 9 fields.
+
+Generate an HTML/CSS template that visually matches the PO layout with all static
+values hardcoded and only the 9 dynamic placeholders above.
+The HTML must be self-contained (inline CSS), A4 size, print-ready, concise —
+no HTML comments, no extra whitespace, minimal CSS.
+
+Return your answer in EXACTLY this format — no other text outside the tags:
 
 <html_template>
 [complete HTML here]
