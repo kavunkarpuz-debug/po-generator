@@ -10,10 +10,6 @@ __pycache__/
 *.pdf
 !PO_TEMPLATE.docx
 
-# Talimat dosyaları (repo'ya gerek yok)
-PO_Automation_Instructions.md
-PO_Kurulum_Rehberi.md
-
 # Windows
 nul
 Thumbs.db
@@ -21,3 +17,8 @@ desktop.ini
 
 # Temp files
 _temp_*
+
+# v2 runtime files
+config.json
+po_template.html
+po_fields.json
