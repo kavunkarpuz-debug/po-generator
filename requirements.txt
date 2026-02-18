@@ -4,5 +4,4 @@ pillow
 python-docx
 openpyxl
 jinja2
-weasyprint
 pytest
