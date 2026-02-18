@@ -39,21 +39,41 @@ Return your answer in EXACTLY this format -- no other text outside the tags:
 
 
 def parse_analyzer_response(response_text: str) -> tuple[str, list[dict]]:
-    """Parse Claude's structured response into (html_str, fields_list)."""
+    """Parse Claude's structured response into (html_str, fields_list).
+
+    Tries multiple tag-name variations for robustness against response format drift.
+    """
     html_match = re.search(
         r"<html_template>([\s\S]*?)</html_template>", response_text
     )
     if not html_match:
-        raise ValueError("Response missing <html_template> block")
+        raise ValueError(
+            "Response missing <html_template> block.\n"
+            f"Response preview: {response_text[:300]}"
+        )
 
-    manifest_match = re.search(
-        r"<field_manifest>([\s\S]*?)</field_manifest>", response_text
+    # Try primary tag, then common Claude alternatives
+    manifest_match = (
+        re.search(r"<field_manifest>([\s\S]*?)</field_manifest>", response_text)
+        or re.search(r"<field_list>([\s\S]*?)</field_list>", response_text)
+        or re.search(r"<fields>([\s\S]*?)</fields>", response_text)
+        or re.search(r"<manifest>([\s\S]*?)</manifest>", response_text)
     )
-    if not manifest_match:
-        raise ValueError("Response missing <field_manifest> block")
+
+    if manifest_match:
+        manifest_json = manifest_match.group(1).strip()
+    else:
+        # Last resort: find a bare JSON object containing a "fields" array
+        bare_json = re.search(r'\{\s*"fields"\s*:\s*\[[\s\S]*?\]\s*\}', response_text)
+        if not bare_json:
+            raise ValueError(
+                "Response missing <field_manifest> block.\n"
+                f"Response preview: {response_text[:300]}"
+            )
+        manifest_json = bare_json.group()
 
     html = html_match.group(1).strip()
-    manifest = json.loads(manifest_match.group(1).strip())
+    manifest = json.loads(manifest_json)
     return html, manifest["fields"]
 
 
@@ -74,7 +94,7 @@ def analyze_example_po(
     content = images + [{"type": "text", "text": ANALYZER_PROMPT}]
     message = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=8192,
         messages=[{"role": "user", "content": content}],
     )
     response_text = message.content[0].text
