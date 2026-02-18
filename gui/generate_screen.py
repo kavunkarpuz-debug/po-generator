@@ -117,12 +117,25 @@ class GenerateScreen:
             output_path = build_output_path(subject, po_number, date_str, output_dir)
             generate_pdf(self._template_html, final_values, output_path)
             review_win.destroy()
-            messagebox.showinfo(
-                "Tamamlandi",
-                "PO olusturuldu:\n" + os.path.basename(output_path)
-            )
+            self._show_success(output_path)
         except Exception as exc:
             messagebox.showerror("Hata", "PDF olusturulamadi:\n" + str(exc))
+
+    def _show_success(self, output_path):
+        win = tk.Toplevel(self.root)
+        win.title("PO Oluşturuldu")
+        win.resizable(False, False)
+        frame = ttk.Frame(win, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="PO başarıyla oluşturuldu!", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(frame, text=output_path, foreground="gray", wraplength=500).pack(anchor="w", pady=(6, 16))
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x")
+        ttk.Button(
+            btn_frame, text="Klasörü Aç",
+            command=lambda: os.startfile(os.path.dirname(output_path))
+        ).pack(side="left")
+        ttk.Button(btn_frame, text="Tamam", command=win.destroy).pack(side="right")
 
     def _on_error(self, message):
         self._btn.config(state="normal")
