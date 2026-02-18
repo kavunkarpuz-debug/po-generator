@@ -5,8 +5,11 @@ Analyzes an example PO PDF via Claude Vision and produces:
 """
 
 import re
+import io
 import json
+import base64
 import anthropic
+import pdfplumber
 from core.utils import read_pdf_as_images
 from core.config import DEFAULT_TEMPLATE_PATH, DEFAULT_FIELDS_PATH
 
@@ -19,7 +22,21 @@ Everything that belongs to the buyer company itself and never changes:
   • Buyer company name, head office address, branch/regional office address
   • Phone, fax, e-mail, trade registry numbers, tax office & ID
   • Sender's full name, job title, mobile number, office address, office phone, website
-  • Any fixed legal text, logos, or branding
+  • Any fixed legal text or branding text
+
+── COMPANY LOGO (graphical image) ───────────────────────────────────────────
+If the company has a GRAPHICAL logo or emblem (a real image, not just styled text):
+  • In the HTML, write exactly: <img src="{{ __logo__ }}" style="width:NNpx;">
+    where NN is an appropriate pixel width for that logo's size in the layout.
+  • In the field_manifest, add ONE special entry:
+    {"name": "__logo_bbox__", "description": "x1,y1,x2,y2"}
+    where x1,y1,x2,y2 are the logo's bounding box as decimal fractions (0.0–1.0)
+    of the PAGE width and height (not the visible content area).
+    Example: if the logo occupies the centre third of the page width and the top 13%
+    of the page height, write "0.33,0.0,0.67,0.13".
+  • Use the __logo__ placeholder EVERY place the same graphical logo appears
+    (e.g. once in the header, once in the signature area).
+If the company has NO distinct graphical logo, omit __logo__ and __logo_bbox__ entirely.
 
 ── DYNAMIC (use {{ snake_case_name }} Jinja2 placeholders) ──────────────────
 Only information that comes from the supplier's quotation or changes per order:
@@ -95,6 +112,46 @@ def parse_analyzer_response(response_text: str) -> tuple[str, list[dict]]:
     return html, manifest["fields"]
 
 
+def _embed_logo(html: str, fields: list[dict], pdf_path: str) -> tuple[str, list[dict]]:
+    """
+    If Claude identified a logo, extract it from the PDF and embed as base64.
+    Returns updated (html, fields) with __logo_bbox__ removed from fields.
+    """
+    logo_field = next((f for f in fields if f["name"] == "__logo_bbox__"), None)
+    if not logo_field:
+        return html, fields
+
+    # Remove the special bbox field from the user-visible list
+    fields = [f for f in fields if f["name"] != "__logo_bbox__"]
+
+    if "{{ __logo__ }}" not in html:
+        return html, fields
+
+    try:
+        parts = [float(v.strip()) for v in logo_field["description"].split(",")]
+        x1_pct, y1_pct, x2_pct, y2_pct = parts
+
+        with pdfplumber.open(pdf_path) as pdf:
+            page_img = pdf.pages[0].to_image(resolution=200).original
+
+        w, h = page_img.size
+        crop = page_img.crop((
+            int(w * x1_pct), int(h * y1_pct),
+            int(w * x2_pct), int(h * y2_pct),
+        ))
+
+        buf = io.BytesIO()
+        crop.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+
+        html = html.replace("{{ __logo__ }}", f"data:image/png;base64,{b64}")
+    except Exception as exc:
+        # Logo extraction failed — remove broken placeholder gracefully
+        html = html.replace('src="{{ __logo__ }}"', 'src=""')
+
+    return html, fields
+
+
 def analyze_example_po(
     pdf_path: str,
     api_key: str,
@@ -123,6 +180,9 @@ def analyze_example_po(
             f"Try using claude-sonnet-4-6 which produces more concise output."
         )
     html, fields = parse_analyzer_response(response_text)
+
+    # Automatically extract and embed any graphical logo Claude identified
+    html, fields = _embed_logo(html, fields, pdf_path)
 
     with open(template_path, "w", encoding="utf-8") as f:
         f.write(html)
