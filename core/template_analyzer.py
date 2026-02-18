@@ -21,6 +21,7 @@ Look at this PO and do two things:
 2. Generate an HTML/CSS template that visually matches this PO layout.
    Use {{ field_name }} Jinja2 placeholders wherever those fields appear.
    The HTML should be self-contained (inline CSS), A4 page size, print-ready.
+   Keep the HTML concise — no comments, no extra whitespace, minimal CSS.
 
 Return your answer in EXACTLY this format -- no other text outside the tags:
 
@@ -94,10 +95,16 @@ def analyze_example_po(
     content = images + [{"type": "text", "text": ANALYZER_PROMPT}]
     message = client.messages.create(
         model=model,
-        max_tokens=8192,
+        max_tokens=16000,
         messages=[{"role": "user", "content": content}],
     )
     response_text = message.content[0].text
+    if message.stop_reason == "max_tokens":
+        raise RuntimeError(
+            f"Claude response was truncated (max_tokens hit). "
+            f"Response length: {len(response_text)} chars. "
+            f"Try using claude-sonnet-4-6 which produces more concise output."
+        )
     html, fields = parse_analyzer_response(response_text)
 
     with open(template_path, "w", encoding="utf-8") as f:
