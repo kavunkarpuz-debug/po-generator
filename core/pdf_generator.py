@@ -60,7 +60,7 @@ def generate_pdf(
         subprocess.run(
             [
                 edge,
-                "--headless",
+                "--headless=old",       # legacy mode: --print-to-pdf-no-header works correctly
                 "--disable-gpu",
                 "--run-all-compositor-stages-before-draw",
                 "--print-to-pdf-no-header",
