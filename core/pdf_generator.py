@@ -24,7 +24,9 @@ def build_output_path(
     output_dir: str,
 ) -> str:
     """Return full path for the output PDF: NNN_DDMMYYYY PO for {subject}.pdf"""
-    filename = f"{po_number}_{date_str} PO for {subject}.pdf"
+    # Truncate subject so the full path stays well under Windows MAX_PATH (260)
+    subject_safe = subject[:60] if len(subject) > 60 else subject
+    filename = f"{po_number}_{date_str} PO for {subject_safe}.pdf"
     return os.path.join(output_dir, filename)
 
 

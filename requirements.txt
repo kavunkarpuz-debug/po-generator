@@ -5,3 +5,6 @@ python-docx
 openpyxl
 jinja2
 pytest
+docx2pdf
+pypdf
+pdf2docx
