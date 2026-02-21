@@ -43,9 +43,9 @@ FIELD CLASSIFICATION RULES:
    - Buyer Company Name (e.g., Güney Yıldızı Petrol, GYP)
    - Buyer Addresses and Fixed Legal Text.
    - Fixed Signature titles or company names.
-   - LOGOS: DO NOT attempt to recreate logos with stars, boxes, or symbols. Use a simple <div> with the text "[LOGO]" or just leave the space empty.
+   - LOGOS: Recreate the LOGO visually using styled <div> elements and text. For example, if there is a 'GYP' box, create it with CSS background colors and borders. 
    - DO NOT create {{ placeholders }} for these.
-   - IMPORTANT: DO NOT add any extra text, icons, or asterisks (*) that are not clearly text in the original document.
+   - IMPORTANT: DO NOT add any extra text, icons, or asterisks (*) that are not in the original document image.
 
 2. DYNAMIC DATA (Use {{ field_name }} placeholders):
    - Order-specific data only: po_date, po_number, subject.
