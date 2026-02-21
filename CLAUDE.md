@@ -1,59 +1,50 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) or other LLMs when working with code in this repository.
 
-## Running the Script
+## Running the Application
 
 ```bash
-# Run from the repository root (requires quotation file to be present)
-python po_generator.py
+# Run the GUI application (main.py for console, main.pyw for no-console)
+python main.py
 ```
 
 **Prerequisites:**
-- `ANTHROPIC_API_KEY` environment variable must be set
-- Microsoft Word must be installed (used by `docx2pdf` via COM automation for PDF conversion)
-- `PO_TEMPLATE.docx` must exist in the same directory
+- API keys (Anthropic, OpenAI, or Google Gemini) must be set in the `.env` file or via the Setup Screen.
+- Microsoft Edge must be installed (used for headless PDF generation via `core/pdf_generator.py`).
 
 **Install dependencies:**
 ```bash
-pip install anthropic python-docx pypdf pdfplumber openpyxl docx2pdf
+pip install anthropic openai google-generativeai python-dotenv pdfplumber pillow python-docx openpyxl jinja2 pypdf
 ```
 
-## Architecture
+## Architecture (V2)
 
-Single-script automation (`po_generator.py`) that runs a 7-step pipeline:
+The application uses a **Modular Desktop Automation** approach:
 
-1. **File detection** — Scans the working directory. Files with "PO" in their name are treated as existing POs; all other valid files (PDF/DOCX/XLSX) are treated as the quotation. Exactly one quotation file must be present.
+1. **Configuration Manager (`core/config.py`):** Loads/saves settings from `.env`. Automatically detects if first-run setup is required.
 
-2. **PO numbering** — Reads 3-digit numeric prefixes from existing PO filenames and increments the highest by 1 (e.g., `548_...` → `549`).
+2. **Template Analyzer (`core/template_analyzer.py`):** Uses LLM Vision to analyze a 1-page example PO PDF. It generates a high-fidelity HTML/CSS template (`po_template.html`) using **HTML TABLES** for layout stability and a dynamic field manifest (`po_fields.json`).
 
-3. **Data extraction via Claude API** — Extracts 7 fields from the quotation: `supplier_company`, `supplier_contact`, `subject`, `delivery_time`, `payment_term`, `delivery_term`, `total_price`. Uses text mode first; falls back to Vision API if PDF text extraction yields fewer than 50 characters. Uses model `claude-sonnet-4-20250514`.
+3. **Quotation Extractor (`core/quotation_extractor.py`):** Uses LLM API to extract dynamic data from any supplier quotation (PDF/DOCX/XLSX) based on the current field manifest. Supports vision fallback for image-only PDFs.
 
-4. **Template filling** — Replaces `{{PLACEHOLDER}}` tokens in `PO_TEMPLATE.docx`. The replacement logic handles placeholders split across multiple Word runs (the "slow path" in `replace_placeholder_in_runs`).
+4. **PDF Generator (`core/pdf_generator.py`):** Renders the Jinja2 HTML template with extracted values and produces a PDF using **Microsoft Edge headless** mode. Automatically strips `min-height` and forces zero margins to prevent blank page overflows.
 
-5. **PDF generation** — Converts the filled `.docx` to PDF via `docx2pdf` (requires MS Word).
+5. **PDF Merger (`core/pdf_generator.py`):** Appends the original quotation (if PDF) to the generated PO cover letter.
 
-6. **PDF merging** — Appends the quotation (converted to PDF if needed) after the PO cover letter using `pypdf`.
+6. **GUI Layer (`gui/`):** Tkinter-based workflow: Setup Screen -> Generate Screen -> Review Screen (for manual edits).
 
-7. **Output** — Two files named `{NNN}_{DDMMYYYY} PO for {subject}.docx/.pdf`.
+## Development Guidelines
 
-## Template Placeholders
+- **HTML Templates:** Always prefer HTML tables for layout. Avoid Flexbox/Grid to prevent shifting during Edge's headless print-to-pdf.
+- **Single Page Integrity:** Injected CSS `@page { margin: 0; }` and programmatic `min-height` replacement with `max-height` are essential for preventing blank page spillovers.
+- **LLM Independence:** Use `core/llm_provider.py` for all AI calls to maintain multi-provider support.
+- **No Console Mode:** When using `pythonw`, ensure stdout/stderr are redirected to avoid crashes during library operations (e.g., `docx2pdf` or `tqdm`).
 
-| Placeholder | Value |
+## Runtime Files
+
+| File | Purpose |
 |---|---|
-| `{{DATE}}` | Today in DD.MM.YYYY |
-| `{{SUPPLIER}}` | Supplier company name |
-| `{{ATTN}}` | Supplier contact person |
-| `{{PO_NO}}` | `{NNN}_{DDMMYYYY}` |
-| `{{SUBJECT}}` | 3-5 word item description |
-| `{{DELIVERY_TIME}}` | Delivery period |
-| `{{PAYMENT_TERM}}` | Payment terms |
-| `{{DELIVERY_TERM}}` | Shipping/delivery terms |
-| `{{TOTAL_PRICE}}` | Grand total with currency |
-
-## Key Constraints
-
-- Only one quotation file may exist in the directory at a time (script exits with error otherwise)
-- Excel-to-PDF conversion uses `win32com` (Excel COM automation); failure is non-fatal — the merged PDF will contain only the PO cover letter
-- Claude API extraction retries once on failure, then falls back to manual `input()` prompts
-- Temp files prefixed with `_temp_` are cleaned up automatically after the run
+| `.env` | API keys, model selection, setup state (TEMPLATE_READY=True). |
+| `po_template.html` | The AI-generated high-fidelity HTML layout. |
+| `po_fields.json` | Manifest of dynamic fields detected in the PO. |

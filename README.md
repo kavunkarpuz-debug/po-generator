@@ -1,77 +1,40 @@
-# PO Generator - Purchase Order Automation
+# PO Generator - Evrensel Satın Alma Otomasyonu (V2)
 
-Tedarikçi tekliflerinden otomatik olarak Purchase Order (PO) belgesi oluşturan Python scripti.
+Tedarikçi tekliflerinden (PDF/Word/Excel) otomatik olarak Purchase Order (PO) belgesi oluşturan, yapay zeka destekli masaüstü uygulaması.
 
-## Ne Yapar?
+## Özellikler
 
-1. Klasördeki teklif dosyasını (PDF/Word/Excel) okur
-2. Claude API ile tedarikçi adı, fiyat, ödeme koşulları gibi bilgileri çıkarır
-3. `PO_TEMPLATE.docx` şablonunu doldurarak Word PO belgesi oluşturur
-4. Word'ü PDF'e çevirir ve teklif ile birleştirip tek bir PDF yapar
+- **Evrensel Şablon Desteği:** Herhangi bir şirketin PO formatını tek bir örnek PDF'ten öğrenir ve birebir taklit eder.
+- **Yüksek Sadakatli PDF:** HTML/CSS tablo düzeni kullanarak milimetrik hassasiyette, kayma yapmayan PDF'ler üretir.
+- **Çoklu AI Desteği:** Claude (Anthropic), GPT-4 (OpenAI) veya Gemini (Google) modelleri ile çalışabilir.
+- **Kompakt Tasarım:** Orijinal belgenin sayfa yapısını ve yoğunluğunu korur, gereksiz sayfa taşmalarını engeller.
+- **Otomatik Birleştirme:** Oluşturulan PO'nun sonuna orijinal tedarikçi teklifini otomatik olarak ekler.
 
 ## Kurulum
 
-### 1. Python Bağımlılıkları
-
+### 1. Bağımlılıklar
+Aşağıdaki kütüphanelerin yüklü olduğundan emin olun:
 ```bash
-pip install anthropic python-docx pypdf pdfplumber openpyxl pandas docx2pdf
+pip install anthropic openai google-generativeai python-dotenv pdfplumber pillow python-docx openpyxl jinja2 pypdf
 ```
 
-### 2. ANTHROPIC_API_KEY
-
-Script, Claude API kullanır. API key'inizi ortam değişkeni olarak tanımlayın:
-
-```bash
-# Windows (kalıcı):
-setx ANTHROPIC_API_KEY "sk-ant-api03-..."
-
-# Windows (geçici, sadece bu terminal):
-set ANTHROPIC_API_KEY=sk-ant-api03-...
-```
-
-API key almak için: https://console.anthropic.com/
-
-### 3. Microsoft Word
-
-PDF dönüşümü için Microsoft Word yüklü olmalıdır (`docx2pdf` Word COM automation kullanır).
+### 2. Microsoft Edge
+PDF üretimi için sisteminizde Microsoft Edge yüklü olmalıdır (Windows 10/11'de varsayılan olarak gelir).
 
 ## Kullanım
 
-1. Klasöre tek bir teklif dosyası (PDF, DOCX, XLSX) koyun — dosya adında **"PO" geçmemeli**
-2. Scripti çalıştırın:
+1. **Uygulamayı Başlatın:**
+   ```bash
+   python main.py
+   ```
+2. **İlk Kurulum (Setup):** Program ilk açılışta sizden bir örnek PO PDF'i ve API anahtarınızı isteyecektir. Bu aşamada AI, şirket formatınızı öğrenir.
+3. **PO Oluşturma:** Ana ekrana teklif dosyasını sürükleyin veya seçin, "Analiz Et" butonuna basın. Gelen verileri kontrol edip onayladığınızda PO'nuz hazır!
 
-```bash
-python po_generator.py
-```
+## Dosya Yapısı
 
-3. Klasörde iki yeni dosya oluşur:
-   - `547_08022026 PO for Ring Joint Gaskets.docx` — Word PO belgesi
-   - `547_08022026 PO for Ring Joint Gaskets.pdf` — PO + teklif birleşik PDF
-
-## Klasör Yapısı
-
-```
-PO Oluşturma/
-├── PO_TEMPLATE.docx          ← Şablon (değiştirmeyin)
-├── po_generator.py            ← Script
-├── 545_30012026 PO for ...    ← Eski PO'lar (numaralama için kullanılır)
-└── yeni_teklif.pdf            ← İşlenecek teklif dosyası
-```
-
-## PO Numaralama
-
-Script klasördeki mevcut PO dosyalarının numaralarını tarar ve en yüksek numaraya +1 ekler. İlk çalıştırmada `001`'den başlar.
-
-## Şablon Placeholder'ları
-
-| Placeholder | Açıklama |
-|---|---|
-| `{{DATE}}` | Tarih (DD.MM.YYYY) |
-| `{{SUPPLIER}}` | Tedarikçi firma adı |
-| `{{ATTN}}` | İlgili kişi |
-| `{{PO_NO}}` | PO numarası |
-| `{{SUBJECT}}` | Konu (3-5 kelime) |
-| `{{DELIVERY_TIME}}` | Teslimat süresi |
-| `{{PAYMENT_TERM}}` | Ödeme koşulları |
-| `{{DELIVERY_TERM}}` | Teslimat koşulları |
-| `{{TOTAL_PRICE}}` | Toplam fiyat |
+- `main.py`: Uygulama giriş noktası.
+- `core/`: Analiz, çıkarma ve PDF üretim motorları.
+- `gui/`: Kullanıcı arayüzü ekranları.
+- `po_template.html`: AI tarafından oluşturulan görsel şablonunuz.
+- `po_fields.json`: Şablonunuzdaki değişken alanların manifestosu.
+- `.env`: API anahtarlarınız ve model ayarlarınız (Gizli tutulmalıdır).
