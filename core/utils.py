@@ -30,7 +30,7 @@ def read_pdf_text(path: str) -> str:
 
 
 def read_pdf_as_images(path: str) -> list[dict]:
-    """Convert each PDF page to a base64 PNG dict for Claude Vision."""
+    """Convert each PDF page to a base64 PNG dict for Claude Vision (Legacy format)."""
     images = []
     with pdfplumber.open(path) as pdf:
         for page in pdf.pages:
@@ -41,6 +41,18 @@ def read_pdf_as_images(path: str) -> list[dict]:
                 "type": "image",
                 "source": {"type": "base64", "media_type": "image/png", "data": b64},
             })
+    return images
+
+
+def read_pdf_as_images_base64(path: str) -> list[str]:
+    """Convert each PDF page to a raw base64 PNG string."""
+    images = []
+    with pdfplumber.open(path) as pdf:
+        for page in pdf.pages:
+            buf = io.BytesIO()
+            page.to_image(resolution=200).original.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            images.append(b64)
     return images
 
 

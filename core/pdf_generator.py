@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import datetime
 from jinja2 import Environment, Undefined
+from pypdf import PdfReader, PdfWriter
 
 
 def fill_template(template_html: str, values: dict) -> str:
@@ -30,6 +31,40 @@ def build_output_path(
     return os.path.join(output_dir, filename)
 
 
+def merge_pdfs(po_pdf_path: str, quotation_path: str, output_path: str) -> bool:
+    """
+    Append the original quotation to the end of the PO.
+    Only works if quotation is a PDF. Returns True if merged, False otherwise.
+    """
+    if not quotation_path.lower().endswith(".pdf"):
+        return False
+
+    try:
+        writer = PdfWriter()
+        
+        # Keep files open while writing
+        with open(po_pdf_path, "rb") as f1, open(quotation_path, "rb") as f2:
+            reader1 = PdfReader(f1)
+            for page in reader1.pages:
+                writer.add_page(page)
+            
+            reader2 = PdfReader(f2)
+            for page in reader2.pages:
+                writer.add_page(page)
+            
+            # Save merged to a temp file first, then overwrite
+            tmp_merged = tempfile.mktemp(suffix=".pdf")
+            with open(tmp_merged, "wb") as out_f:
+                writer.write(out_f)
+        
+        shutil.move(tmp_merged, output_path)
+        return True
+    except Exception as exc:
+        print(f"PDF birleştirme hatası: {exc}")
+        # Re-raise so the GUI shows the error
+        raise exc
+
+
 def _find_edge() -> str:
     """Return path to msedge.exe; raise RuntimeError if not found."""
     candidates = [
@@ -49,17 +84,22 @@ def generate_pdf(
     values: dict,
     output_path: str,
 ) -> None:
-    """Fill template and write PDF to output_path using Edge headless.
-
-    Edge cannot handle non-ASCII characters in file paths, so we:
-    1. Write the HTML to a temp file (ASCII path in %TEMP%)
-    2. Tell Edge to save the PDF to another temp path (also ASCII)
-    3. Move the finished PDF to the actual output_path
-    """
+    """Fill template and write PDF to output_path using Edge headless."""
     rendered_html = fill_template(template_html, values)
+    
+    # Force single page and prevent overflow spillovers
+    # 1. Remove min-height constraints which often cause a blank 2nd page on A4
+    rendered_html = rendered_html.replace("min-height:", "max-height:")
+    
+    # 2. Inject CSS to force no headers/footers and zero margins
+    css_injection = " @page { margin: 0; } body { margin: 0; padding: 0; } "
+    if "<style>" in rendered_html:
+        rendered_html = rendered_html.replace("<style>", f"<style>{css_injection}")
+    else:
+        rendered_html = rendered_html.replace("</head>", f"<style>{css_injection}</style></head>")
 
     tmp_html_fd, tmp_html = tempfile.mkstemp(suffix=".html")
-    tmp_pdf = tempfile.mktemp(suffix=".pdf")  # ASCII path for Edge
+    tmp_pdf = tempfile.mktemp(suffix=".pdf")
     try:
         with os.fdopen(tmp_html_fd, "w", encoding="utf-8") as f:
             f.write(rendered_html)
@@ -67,15 +107,13 @@ def generate_pdf(
         edge = _find_edge()
         file_url = "file:///" + tmp_html.replace("\\", "/")
 
+        # Use newer headless mode and explicit no-header flag
         subprocess.run(
             [
                 edge,
-                "--headless=old",
+                "--headless",
                 "--disable-gpu",
-                "--run-all-compositor-stages-before-draw",
-                "--print-to-pdf-no-header",
-                "--paper-width=8.27",
-                "--paper-height=11.69",
+                "--no-pdf-header-footer",
                 f"--print-to-pdf={tmp_pdf}",
                 file_url,
             ],

@@ -1,46 +1,34 @@
 """
-Extracts field values from a supplier quotation using Claude API.
-Field names are driven by po_fields.json (dynamic, AI-determined).
+Extracts field values from a supplier quotation using LLMProvider.
 """
 
 import re
 import json
-import anthropic
-from core.utils import read_file_text, read_pdf_as_images
+from core.llm_provider import LLMProvider
+from core.utils import read_file_text, read_pdf_as_images_base64
 
 
-def _build_extraction_prompt(fields: list[dict], document_text: str) -> str:
+def _build_extraction_prompt(fields: list[dict], document_text: str = "") -> str:
     field_lines = "\n".join(
         f'- "{f["name"]}": {f["description"]}'  for f in fields
     )
-    return (
+    prompt = (
         f"Extract the following fields from this supplier quotation document.\n\n"
         f"Return ONLY a valid JSON object with these exact keys:\n{field_lines}\n\n"
         f"Use null for any field that cannot be determined.\n\n"
-        f"DOCUMENT CONTENT:\n{document_text}"
     )
-
-
-def _build_vision_prompt(fields: list[dict]) -> str:
-    field_lines = "\n".join(
-        f'- "{f["name"]}": {f["description"]}'  for f in fields
-    )
-    return (
-        f"Extract the following fields from this supplier quotation document image.\n\n"
-        f"Return ONLY a valid JSON object with these exact keys:\n{field_lines}\n\n"
-        f"Use null for any field that cannot be determined."
-    )
+    if document_text:
+        prompt += f"DOCUMENT CONTENT:\n{document_text}"
+    return prompt
 
 
 def parse_extraction_response(response_text: str, fields: list[dict]) -> dict:
-    """Parse Claude's JSON response. Returns dict with all field names as keys."""
-    # Strip markdown code block if present
+    """Parse JSON response. Returns dict with all field names as keys."""
     json_match = re.search(r"\{[\s\S]*\}", response_text)
     if not json_match:
-        raise ValueError(f"No JSON object found in response: {response_text[:300]}")
+        raise ValueError(f"No JSON object found in response.")
     data = json.loads(json_match.group())
 
-    # Ensure every field is present, defaulting missing ones to None
     for field in fields:
         if field["name"] not in data:
             data[field["name"]] = None
@@ -50,32 +38,26 @@ def parse_extraction_response(response_text: str, fields: list[dict]) -> dict:
 def extract_values(
     quotation_path: str,
     fields: list[dict],
-    api_key: str,
-    model: str,
+    config: dict,
 ) -> dict:
     """
-    Read quotation, call Claude API, return extracted values dict.
-    Missing/unfound values are None.
+    Read quotation, call LLM, return extracted values dict.
     """
-    client = anthropic.Anthropic(api_key=api_key)
+    provider = LLMProvider(
+        provider=config.get("provider", "anthropic"),
+        api_key=config["api_key"],
+        model=config["model"]
+    )
 
     text = read_file_text(quotation_path)
 
     if text and len(text.strip()) > 50:
         prompt = _build_extraction_prompt(fields, text)
-        message = client.messages.create(
-            model=model,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        response = provider.generate_text(prompt)
     else:
-        # Vision fallback for image-only PDFs
-        images = read_pdf_as_images(quotation_path)
-        content = images + [{"type": "text", "text": _build_vision_prompt(fields)}]
-        message = client.messages.create(
-            model=model,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": content}],
-        )
+        # Vision fallback
+        images = read_pdf_as_images_base64(quotation_path)
+        prompt = _build_extraction_prompt(fields)
+        response = provider.generate_with_vision(prompt, images)
 
-    return parse_extraction_response(message.content[0].text, fields)
+    return parse_extraction_response(response, fields)

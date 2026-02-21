@@ -20,5 +20,7 @@ _temp_*
 
 # v2 runtime files
 config.json
+.env
 po_template.html
+po_template.docx
 po_fields.json

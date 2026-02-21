@@ -1,4 +1,7 @@
 anthropic
+openai
+google-generativeai
+python-dotenv
 pdfplumber
 pillow
 python-docx
@@ -8,3 +11,4 @@ pytest
 docx2pdf
 pypdf
 pdf2docx
+docxtpl
