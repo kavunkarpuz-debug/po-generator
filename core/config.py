@@ -1,10 +1,17 @@
 """Config file loading and saving via .env (environment variables)."""
 
 import os
+import sys
 from dotenv import load_dotenv, set_key
 
-# Default paths
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Determine the root directory (where the .exe or script is located)
+if getattr(sys, 'frozen', False):
+    # Running as compiled .exe
+    _ROOT = os.path.dirname(sys.executable)
+else:
+    # Running as script
+    _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 DEFAULT_ENV_PATH           = os.path.join(_ROOT, ".env")
 DEFAULT_TEMPLATE_PATH      = os.path.join(_ROOT, "po_template.html")
 DEFAULT_DOCX_TEMPLATE_PATH = os.path.join(_ROOT, "po_template.docx")

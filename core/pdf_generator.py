@@ -84,57 +84,105 @@ def generate_pdf(
     values: dict,
     output_path: str,
 ) -> None:
-    """Fill template and write PDF to output_path using Edge headless."""
+    """Fill template and write PDF using a multi-stage safety strategy for OneDrive."""
+    import tempfile
+    import time
+    import logging
+    import shutil
+    
     rendered_html = fill_template(template_html, values)
     
-    # Force single page and prevent overflow spillovers
-    # 1. Remove min-height constraints which often cause a blank 2nd page on A4
+    # 1. AGGRESSIVE OVERFLOW PREVENTION
+    # Remove all min-height constraints that force 2nd pages
     rendered_html = rendered_html.replace("min-height:", "max-height:")
     
-    # 2. Inject CSS to force no headers/footers and zero margins
-    css_injection = " @page { margin: 0; } body { margin: 0; padding: 0; } "
-    if "<style>" in rendered_html:
-        rendered_html = rendered_html.replace("<style>", f"<style>{css_injection}")
+    # 2. INJECT CSS FOR SINGLE PAGE INTEGRITY
+    css_injection = """
+    <style>
+        @page { size: A4; margin: 0 !important; }
+        html, body { 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            overflow: hidden !important;
+            height: auto !important;
+            min-height: 0 !important;
+            zoom: 0.98; /* Subtle shrink to guarantee fit */
+        }
+        .page-container, .page {
+            margin: 0 auto !important;
+            min-height: 0 !important;
+            max-width: 100% !important;
+        }
+    </style>
+    """
+    if "</head>" in rendered_html:
+        rendered_html = rendered_html.replace("</head>", f"{css_injection}</head>")
     else:
-        rendered_html = rendered_html.replace("</head>", f"<style>{css_injection}</style></head>")
+        rendered_html = css_injection + rendered_html
 
-    tmp_html_fd, tmp_html = tempfile.mkstemp(suffix=".html")
-    tmp_pdf = tempfile.mktemp(suffix=".pdf")
+    # Use a unique subfolder in Temp for each run to avoid any conflicts
+    import uuid
+    temp_dir = os.path.join(tempfile.gettempdir(), f"po_gen_{uuid.uuid4().hex[:8]}")
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+        
+    tmp_html = os.path.join(temp_dir, "input.html")
+    tmp_pdf = os.path.join(temp_dir, "output.pdf")
+    
     try:
-        with os.fdopen(tmp_html_fd, "w", encoding="utf-8") as f:
+        with open(tmp_html, "w", encoding="utf-8") as f:
             f.write(rendered_html)
 
         edge = _find_edge()
-        file_url = "file:///" + tmp_html.replace("\\", "/")
+        file_url = "file:///" + os.path.abspath(tmp_html).replace("\\", "/")
 
-        # Use newer headless mode and explicit no-header flag
-        subprocess.run(
-            [
-                edge,
-                "--headless",
-                "--disable-gpu",
-                "--no-pdf-header-footer",
-                f"--print-to-pdf={tmp_pdf}",
-                file_url,
-            ],
-            check=True,
-            capture_output=True,
-        )
+        # Execution with standard stable flags
+        cmd = [
+            edge,
+            "--headless=old",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--no-pdf-header-footer",
+            f"--print-to-pdf={tmp_pdf}",
+            file_url,
+        ]
+        
+        subprocess.run(cmd, capture_output=True, text=True)
+        
+        # 2. WAIT FOR FILE: OneDrive/Edge can be slow. 
+        # Wait up to 5 seconds for the file to exist AND have data inside.
+        success = False
+        for _ in range(10): # 10 x 0.5s = 5 seconds max
+            if os.path.exists(tmp_pdf) and os.path.getsize(tmp_pdf) > 1000:
+                success = True
+                break
+            time.sleep(0.5)
 
-        if not os.path.exists(tmp_pdf):
-            raise RuntimeError(
-                "Edge PDF oluşturamadı — geçici dosya bulunamadı."
-            )
+        if not success:
+            raise RuntimeError("Edge PDF dosyasini olusturamadi veya dosya bos kaldi.")
 
-        # Move from ASCII temp path to the actual (possibly non-ASCII) destination
-        shutil.move(tmp_pdf, output_path)
+        # 3. MOVE WITH RETRIES: OneDrive might lock the destination folder immediately.
+        move_success = False
+        for i in range(3):
+            try:
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                shutil.move(tmp_pdf, output_path)
+                move_success = True
+                break
+            except Exception as e:
+                logging.warning(f"Move attempt {i+1} failed (OneDrive lock?): {e}")
+                time.sleep(1) # Wait for sync lock to release
+        
+        if not move_success:
+            raise RuntimeError(f"PDF olusturuldu ama klasore tasinamadi: {output_path}")
 
     finally:
+        # Cleanup
         for p in (tmp_html, tmp_pdf):
-            try:
-                os.unlink(p)
-            except OSError:
-                pass
+            if os.path.exists(p):
+                try: os.remove(p)
+                except: pass
 
 
 def get_po_number_and_date(output_dir: str) -> tuple[str, str, str]:
