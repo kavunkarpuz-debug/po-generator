@@ -57,8 +57,14 @@ class GenerateScreen:
             row=2, column=0, columnspan=3, sticky="w", padx=12
         )
 
-        self._btn = ttk.Button(frame, text="Analiz Et", command=self._start_extraction)
-        self._btn.grid(row=3, column=0, columnspan=3, pady=16)
+        # Main Buttons Frame
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=3, column=0, columnspan=3, pady=16, sticky="ew")
+
+        self._btn = ttk.Button(btn_frame, text="Teklifi Analiz Et", command=self._start_extraction)
+        self._btn.pack(side="left", expand=True, padx=5)
+
+        ttk.Button(btn_frame, text="Ayarları Sıfırla", command=self._confirm_reset).pack(side="right", padx=5)
 
     def _browse(self):
         path = filedialog.askopenfilename(
@@ -72,6 +78,21 @@ class GenerateScreen:
         )
         if path:
             self._file_var.set(path)
+
+    def _confirm_reset(self):
+        """Confirm and delete config files to return to setup mode."""
+        msg = "Tüm ayarlar, API anahtarı ve oluşturulan PO şablonu silinecektir.\n\nUygulama sıfırlanıp kapatılacak. Emin misiniz?"
+        if messagebox.askyesno("Ayarları Sıfırla", msg):
+            try:
+                from core.config import DEFAULT_ENV_PATH, DEFAULT_TEMPLATE_PATH, DEFAULT_FIELDS_PATH
+                for p in [DEFAULT_ENV_PATH, DEFAULT_TEMPLATE_PATH, DEFAULT_FIELDS_PATH]:
+                    if os.path.exists(p):
+                        os.remove(p)
+                
+                messagebox.showinfo("Sıfırlandı", "Uygulama başarıyla sıfırlandı. Tekrar açtığınızda kurulum ekranı gelecektir.")
+                self.root.destroy()
+            except Exception as e:
+                messagebox.showerror("Hata", f"Sıfırlama sırasında hata oluştu: {e}")
 
     def _start_extraction(self):
         path = self._file_var.get().strip()
