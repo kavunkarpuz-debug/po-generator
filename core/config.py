@@ -30,7 +30,7 @@ def load_config() -> dict:
 
     return {
         "provider": os.getenv("LLM_PROVIDER"),
-        "api_key": os.getenv("LLM_API_KEY"),
+        "api_key": os.getenv("LLM_API_KEY") or os.getenv("GOOGLE_API_KEY"),
         "model": os.getenv("LLM_MODEL"),
         "template_ready": os.getenv("TEMPLATE_READY") == "True",
         "use_docx": os.getenv("USE_DOCX") == "True"

@@ -1,0 +1,25 @@
+# API keys ve hassas bilgiler
+.env
+.env.local
+.env.production
+.env.development
+.env*.local
+
+# Credential dosyaları
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*secret*
+*credential*
+*token*.json
+
+# SSH ve auth
+.ssh/
+.gnupg/
+
+# OS ve IDE hassas dosyaları
+.netrc
+.npmrc
